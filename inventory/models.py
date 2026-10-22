@@ -1,6 +1,7 @@
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.core.validators import MinValueValidator
-from django.db import models
+from django.db import models, transaction
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=255)
@@ -80,6 +81,27 @@ class StockMovement(models.Model):
                 name="movement_qty_gte_1",
             ),
         ]
+
+    def save(self, *args, **kwargs):
+        # A movement is recorded once. Saving it again must not move stock twice.
+        if self.pk is not None:
+            super().save(*args, **kwargs)
+            return
+
+        with transaction.atomic():
+            product = Product.objects.select_for_update().get(pk=self.product_id)
+            if self.direction == self.Direction.IN:
+                product.stock_quantity += self.quantity
+            elif self.direction == self.Direction.OUT:
+                if self.quantity > product.stock_quantity:
+                    raise ValidationError(
+                        {"quantity": "Not enough stock to move out."}
+                    )
+                product.stock_quantity -= self.quantity
+            else:
+                raise ValidationError({"direction": "Direction must be IN or OUT."})
+            product.save(update_fields=["stock_quantity"])
+            super().save(*args, **kwargs)
 
     def __str__(self):
         return f"{self.direction} {self.quantity} {self.product}"
