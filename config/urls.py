@@ -19,8 +19,10 @@ from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
 from config.exceptions import not_found
+from config.health import health
 
 urlpatterns = [
+    path('health/', health, name='health'),
     path('admin/', admin.site.urls),
     path('api/', include('accounts.urls')),
     path('api/', include('inventory.urls')),
