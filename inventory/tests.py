@@ -175,3 +175,123 @@ class WarehouseApiTests(APITestCase):
         deleted = self.client.delete(f"/api/warehouses/{warehouse_id}/")
         self.assertEqual(deleted.status_code, status.HTTP_204_NO_CONTENT)
         self.assertFalse(Warehouse.objects.filter(pk=warehouse_id).exists())
+
+
+class ProductApiTests(APITestCase):
+    def setUp(self):
+        self.password = "correct-horse"
+        self.standard = Account.objects.create_user(
+            "standard@example.com",
+            self.password,
+        )
+        self.admin = Account.objects.create_user(
+            "admin@example.com",
+            self.password,
+            role=Role.ADMIN,
+        )
+        self.warehouse = Warehouse.objects.create(
+            name="Main",
+            location="Dock 1",
+            capacity=100,
+        )
+        self.active = Product.objects.create(
+            sku="CRATE-1",
+            name="Crate",
+            unit_price="12.50",
+        )
+        self.inactive = Product.objects.create(
+            sku="CRATE-2",
+            name="Old crate",
+            unit_price="4.00",
+            is_active=False,
+        )
+        self.active.warehouses.add(self.warehouse)
+
+    def authenticate(self, account):
+        login = self.client.post(
+            "/api/auth/token/",
+            {"email": account.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+
+    def test_standard_user_sees_only_active_products(self):
+        self.authenticate(self.standard)
+
+        listing = self.client.get("/api/products/")
+        active = self.client.get(f"/api/products/{self.active.id}/")
+        inactive = self.client.get(f"/api/products/{self.inactive.id}/")
+
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        self.assertEqual(
+            [product["sku"] for product in listing.data["results"]],
+            ["CRATE-1"],
+        )
+        self.assertEqual(active.status_code, status.HTTP_200_OK)
+        self.assertEqual(active.data["warehouses"], [self.warehouse.id])
+        self.assertEqual(inactive.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(inactive.data["error"]["code"], "not_found")
+
+    def test_admin_sees_inactive_products(self):
+        self.authenticate(self.admin)
+
+        listing = self.client.get("/api/products/")
+        inactive = self.client.get(f"/api/products/{self.inactive.id}/")
+
+        self.assertEqual(
+            [product["sku"] for product in listing.data["results"]],
+            ["CRATE-1", "CRATE-2"],
+        )
+        self.assertEqual(inactive.status_code, status.HTTP_200_OK)
+        self.assertFalse(inactive.data["is_active"])
+
+    def test_anonymous_user_cannot_list_products(self):
+        response = self.client.get("/api/products/")
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_standard_user_cannot_change_products(self):
+        self.authenticate(self.standard)
+
+        response = self.client.post(
+            "/api/products/",
+            {"sku": "NEW-1", "name": "New", "unit_price": "1.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["error"]["code"], "permission_denied")
+
+    def test_admin_can_create_a_product_in_a_warehouse(self):
+        self.authenticate(self.admin)
+
+        created = self.client.post(
+            "/api/products/",
+            {
+                "sku": "BOX-1",
+                "name": "Box",
+                "description": "Cardboard",
+                "unit_price": "3.25",
+                "warehouses": [self.warehouse.id],
+            },
+            format="json",
+        )
+
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(created.data["stock_quantity"], 0)
+        self.assertEqual(created.data["warehouses"], [self.warehouse.id])
+        product = Product.objects.get(sku="BOX-1")
+        self.assertEqual(list(product.warehouses.all()), [self.warehouse])
+
+    def test_admin_create_rejects_a_negative_price(self):
+        self.authenticate(self.admin)
+
+        response = self.client.post(
+            "/api/products/",
+            {"sku": "BOX-2", "name": "Box", "unit_price": "-1.00"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"]["code"], "validation_error")
+        self.assertFalse(Product.objects.filter(sku="BOX-2").exists())

@@ -1,4 +1,4 @@
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from rest_framework.exceptions import ValidationError
 from rest_framework.views import exception_handler
 
@@ -31,6 +31,10 @@ def api_exception_handler(exc, context):
         code = "validation_error"
         message = "Invalid input."
         details = _plain(data) if isinstance(data, dict) else {"non_field_errors": _plain(data)}
+    elif isinstance(exc, Http404):
+        code = "not_found"
+        message = str(data["detail"]) if isinstance(data, dict) and "detail" in data else "Not found."
+        details = {}
     elif isinstance(data, dict) and "detail" in data:
         code = getattr(exc, "default_code", "error")
         message = str(data["detail"])
