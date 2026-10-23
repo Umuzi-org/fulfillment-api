@@ -57,7 +57,9 @@ class LoginTests(APITestCase):
             {"email": "ada@example.com", "password": "correct-horse"},
             format="json",
         )
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access']}"
+        )
 
         response = self.client.get("/api/accounts/me/")
 
@@ -130,7 +132,9 @@ class AccountApiTests(APITestCase):
             {"email": account.email, "password": self.password},
             format="json",
         )
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access']}"
+        )
 
     def test_admin_can_list_and_create_accounts(self):
         self.authenticate(self.admin)
@@ -199,7 +203,10 @@ class AccountManagerTests(TestCase):
             Account.objects.create_user("", "correct-horse")
 
     def test_create_superuser_is_an_admin(self):
-        account = Account.objects.create_superuser("boss@example.com", "correct-horse")
+        account = Account.objects.create_superuser(
+            "boss@example.com",
+            "correct-horse",
+        )
 
         self.assertEqual(account.role, Role.ADMIN)
         self.assertTrue(account.is_staff)

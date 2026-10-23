@@ -1,10 +1,18 @@
 from rest_framework.routers import DefaultRouter
 
-from inventory.views import ProductViewSet, StockMovementViewSet, WarehouseViewSet
+from inventory.views import (
+    ProductViewSet,
+    StockMovementViewSet,
+    WarehouseViewSet,
+)
 
 router = DefaultRouter()
 router.register("warehouses", WarehouseViewSet, basename="warehouse")
 router.register("products", ProductViewSet, basename="product")
-router.register("stock-movements", StockMovementViewSet, basename="stock-movement")
+router.register(
+    "stock-movements",
+    StockMovementViewSet,
+    basename="stock-movement",
+)
 
 urlpatterns = router.urls

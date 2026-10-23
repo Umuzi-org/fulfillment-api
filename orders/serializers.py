@@ -53,7 +53,9 @@ class FulfillmentOrderSerializer(serializers.ModelSerializer):
     def validate_status(self, value):
         if self.instance is None:
             if value != FulfillmentOrder.Status.PENDING:
-                raise serializers.ValidationError("A new order starts as PENDING.")
+                raise serializers.ValidationError(
+                    "A new order starts as PENDING."
+                )
             return value
 
         user = self.context["request"].user

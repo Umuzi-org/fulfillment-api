@@ -37,7 +37,9 @@ class AccountWriteSerializer(serializers.ModelSerializer):
 
     def validate_role(self, value):
         user = self.context["request"].user
-        changing_own_role = self.instance is not None and value != self.instance.role
+        changing_own_role = (
+            self.instance is not None and value != self.instance.role
+        )
         if changing_own_role and getattr(user, "role", None) != Role.ADMIN:
             raise serializers.ValidationError("Only an admin can change role.")
         return value

@@ -30,15 +30,26 @@ def api_exception_handler(exc, context):
     if isinstance(exc, ValidationError):
         code = "validation_error"
         message = "Invalid input."
-        details = _plain(data) if isinstance(data, dict) else {"non_field_errors": _plain(data)}
+        details = (
+            _plain(data) if isinstance(data, dict)
+            else {"non_field_errors": _plain(data)}
+        )
     elif isinstance(exc, Http404):
         code = "not_found"
-        message = str(data["detail"]) if isinstance(data, dict) and "detail" in data else "Not found."
+        message = (
+            str(data["detail"])
+            if isinstance(data, dict) and "detail" in data
+            else "Not found."
+        )
         details = {}
     elif isinstance(data, dict) and "detail" in data:
         code = getattr(exc, "default_code", "error")
         message = str(data["detail"])
-        details = {key: _plain(value) for key, value in data.items() if key != "detail"}
+        details = {
+            key: _plain(value)
+            for key, value in data.items()
+            if key != "detail"
+        }
     else:
         code = getattr(exc, "default_code", "error")
         message = "Request failed."

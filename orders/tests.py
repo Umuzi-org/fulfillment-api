@@ -39,27 +39,43 @@ class FulfillmentOrderApiTests(APITestCase):
             {"email": account.email, "password": self.password},
             format="json",
         )
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access']}"
+        )
 
     def create_order(self, lines=None):
         if lines is None:
             lines = [{"product": self.crate.id, "quantity": 2}]
-        return self.client.post("/api/orders/", {"lines": lines}, format="json")
+        return self.client.post(
+            "/api/orders/",
+            {"lines": lines},
+            format="json",
+        )
 
     def test_create_copies_the_price_and_assigns_the_signed_in_account(self):
         self.authenticate(self.standard)
 
         response = self.create_order(
             [
-                {"product": self.crate.id, "quantity": 2, "unit_price": "0.01"},
+                {
+                    "product": self.crate.id,
+                    "quantity": 2,
+                    "unit_price": "0.01",
+                },
                 {"product": self.box.id, "quantity": 1},
             ]
         )
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(response.data["account"], self.standard.id)
-        self.assertEqual(response.data["status"], FulfillmentOrder.Status.PENDING)
-        prices = {line["product"]: line["unit_price"] for line in response.data["lines"]}
+        self.assertEqual(
+            response.data["status"],
+            FulfillmentOrder.Status.PENDING,
+        )
+        prices = {
+            line["product"]: line["unit_price"]
+            for line in response.data["lines"]
+        }
         self.assertEqual(prices[self.crate.id], "12.50")
         self.assertEqual(prices[self.box.id], "3.00")
 
@@ -115,7 +131,10 @@ class FulfillmentOrderApiTests(APITestCase):
         self.assertEqual(shipped.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(shipped.data["error"]["code"], "validation_error")
         self.assertEqual(cancelled.status_code, status.HTTP_200_OK)
-        self.assertEqual(cancelled.data["status"], FulfillmentOrder.Status.CANCELLED)
+        self.assertEqual(
+            cancelled.data["status"],
+            FulfillmentOrder.Status.CANCELLED,
+        )
 
     def test_admin_can_see_every_order_and_move_status(self):
         self.authenticate(self.standard)
@@ -131,7 +150,10 @@ class FulfillmentOrderApiTests(APITestCase):
 
         self.assertEqual(listing.data["count"], 1)
         self.assertEqual(updated.status_code, status.HTTP_200_OK)
-        self.assertEqual(updated.data["status"], FulfillmentOrder.Status.SHIPPED)
+        self.assertEqual(
+            updated.data["status"],
+            FulfillmentOrder.Status.SHIPPED,
+        )
 
     def test_anonymous_user_cannot_list_orders(self):
         response = self.client.get("/api/orders/")

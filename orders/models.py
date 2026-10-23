@@ -33,7 +33,10 @@ class FulfillmentOrder(models.Model):
 
     class Meta:
         indexes = [
-            models.Index(fields=["account", "status"], name="order_account_status_idx"),
+            models.Index(
+                fields=["account", "status"],
+                name="order_account_status_idx",
+            ),
             models.Index(fields=["created_at"], name="order_created_at_idx"),
         ]
 

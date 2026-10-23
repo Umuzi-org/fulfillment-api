@@ -9,7 +9,10 @@ from inventory.models import Product, StockMovement, Warehouse
 
 class StockMovementTests(TestCase):
     def setUp(self):
-        self.account = Account.objects.create_user("keeper@example.com", "correct-horse")
+        self.account = Account.objects.create_user(
+            "keeper@example.com",
+            "correct-horse",
+        )
         self.warehouse = Warehouse.objects.create(
             name="Main",
             location="Dock 1",
@@ -134,7 +137,9 @@ class WarehouseApiTests(APITestCase):
             {"email": account.email, "password": self.password},
             format="json",
         )
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access']}"
+        )
 
     def test_signed_in_user_can_list_and_retrieve(self):
         self.authenticate(self.standard)
@@ -170,7 +175,9 @@ class WarehouseApiTests(APITestCase):
         self.assertEqual(updated.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(deleted.status_code, status.HTTP_403_FORBIDDEN)
         self.assertEqual(created.data["error"]["code"], "permission_denied")
-        self.assertTrue(Warehouse.objects.filter(pk=self.warehouse.id).exists())
+        self.assertTrue(
+            Warehouse.objects.filter(pk=self.warehouse.id).exists()
+        )
 
     def test_admin_can_create_update_and_delete(self):
         self.authenticate(self.admin)
@@ -232,7 +239,9 @@ class ProductApiTests(APITestCase):
             {"email": account.email, "password": self.password},
             format="json",
         )
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access']}"
+        )
 
     def test_standard_user_sees_only_active_products(self):
         self.authenticate(self.standard)
@@ -346,7 +355,9 @@ class StockMovementApiTests(APITestCase):
             {"email": account.email, "password": self.password},
             format="json",
         )
-        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+        self.client.credentials(
+            HTTP_AUTHORIZATION=f"Bearer {login.data['access']}"
+        )
 
     def test_admin_movement_changes_stock_and_records_the_admin(self):
         self.authenticate(self.admin)

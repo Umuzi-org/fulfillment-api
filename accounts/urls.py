@@ -8,8 +8,16 @@ router = DefaultRouter()
 router.register("accounts", AccountViewSet, basename="account")
 
 urlpatterns = [
-    path("auth/token/", EmailTokenObtainPairView.as_view(), name="token_obtain_pair"),
-    path("auth/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+    path(
+        "auth/token/",
+        EmailTokenObtainPairView.as_view(),
+        name="token_obtain_pair",
+    ),
+    path(
+        "auth/token/refresh/",
+        TokenRefreshView.as_view(),
+        name="token_refresh",
+    ),
     path("accounts/me/", MeView.as_view(), name="me"),
     path("", include(router.urls)),
 ]

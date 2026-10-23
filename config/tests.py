@@ -77,7 +77,10 @@ class HealthTests(TestCase):
         self.assertGreaterEqual(body["uptime_seconds"], 0)
 
     def test_health_reports_a_database_failure(self):
-        with patch("config.health.connection.cursor", side_effect=DatabaseError("down")):
+        with patch(
+            "config.health.connection.cursor",
+            side_effect=DatabaseError("down"),
+        ):
             response = self.client.get("/health/")
 
         body = response.json()

@@ -21,7 +21,9 @@ class FulfillmentOrderViewSet(
 ):
     serializer_class = FulfillmentOrderSerializer
     permission_classes = [IsAuthenticated]
-    queryset = FulfillmentOrder.objects.prefetch_related("lines").order_by("-created_at")
+    queryset = FulfillmentOrder.objects.prefetch_related(
+        "lines",
+    ).order_by("-created_at")
 
     def get_queryset(self):
         orders = super().get_queryset()
