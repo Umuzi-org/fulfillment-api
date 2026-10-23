@@ -1,4 +1,4 @@
-from django.test import override_settings
+from django.test import TestCase, override_settings
 from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
@@ -191,3 +191,38 @@ class AccountApiTests(APITestCase):
         self.assertEqual(role_change.data["error"]["code"], "validation_error")
         self.standard.refresh_from_db()
         self.assertEqual(self.standard.role, Role.STANDARD)
+
+
+class AccountManagerTests(TestCase):
+    def test_create_user_requires_an_email(self):
+        with self.assertRaises(ValueError):
+            Account.objects.create_user("", "correct-horse")
+
+    def test_create_superuser_is_an_admin(self):
+        account = Account.objects.create_superuser("boss@example.com", "correct-horse")
+
+        self.assertEqual(account.role, Role.ADMIN)
+        self.assertTrue(account.is_staff)
+        self.assertTrue(account.is_superuser)
+        self.assertEqual(str(account), "boss@example.com")
+
+    def test_create_superuser_rejects_a_weaker_account(self):
+        with self.assertRaises(ValueError):
+            Account.objects.create_superuser(
+                "role@example.com",
+                "correct-horse",
+                role=Role.STANDARD,
+            )
+        with self.assertRaises(ValueError):
+            Account.objects.create_superuser(
+                "staff@example.com",
+                "correct-horse",
+                is_staff=False,
+            )
+        with self.assertRaises(ValueError):
+            Account.objects.create_superuser(
+                "super@example.com",
+                "correct-horse",
+                is_superuser=False,
+            )
+        self.assertEqual(Account.objects.count(), 0)

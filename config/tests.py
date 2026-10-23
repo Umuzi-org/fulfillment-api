@@ -1,7 +1,11 @@
+import json
 from unittest.mock import patch
 
 from django.db import Error as DatabaseError
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
+from rest_framework.exceptions import APIException
+
+from config.exceptions import api_exception_handler, server_error
 
 
 class HealthTests(TestCase):
@@ -24,3 +28,36 @@ class HealthTests(TestCase):
         self.assertEqual(body["status"], "unavailable")
         self.assertEqual(body["database"], "unavailable")
         self.assertIsInstance(body["uptime_seconds"], int)
+
+
+class ErrorHandlerTests(TestCase):
+    def test_unhandled_exception_is_left_to_django(self):
+        self.assertIsNone(api_exception_handler(RuntimeError("boom"), {}))
+
+    def test_list_error_uses_the_fallback_message(self):
+        class ListError(APIException):
+            status_code = 400
+            default_detail = ["bad"]
+            default_code = "bad_request"
+
+        response = api_exception_handler(ListError(), {})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["error"]["code"], "bad_request")
+        self.assertEqual(response.data["error"]["message"], "Request failed.")
+        self.assertEqual(response.data["error"]["details"], {})
+
+    def test_server_error_uses_the_error_schema(self):
+        response = server_error(RequestFactory().get("/"))
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(
+            json.loads(response.content),
+            {
+                "error": {
+                    "code": "server_error",
+                    "message": "Something went wrong.",
+                    "details": {},
+                }
+            },
+        )

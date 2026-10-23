@@ -137,3 +137,38 @@ class FulfillmentOrderApiTests(APITestCase):
         response = self.client.get("/api/orders/")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_order_lines_and_initial_status_are_fixed_at_creation(self):
+        self.authenticate(self.standard)
+
+        empty = self.client.post("/api/orders/", {"lines": []}, format="json")
+        created = self.create_order()
+        changed = self.client.patch(
+            f"/api/orders/{created.data['id']}/",
+            {"lines": [{"product": self.box.id, "quantity": 1}]},
+            format="json",
+        )
+        shipped = self.client.post(
+            "/api/orders/",
+            {
+                "status": FulfillmentOrder.Status.SHIPPED,
+                "lines": [{"product": self.crate.id, "quantity": 1}],
+            },
+            format="json",
+        )
+        pending = self.client.post(
+            "/api/orders/",
+            {
+                "status": FulfillmentOrder.Status.PENDING,
+                "lines": [{"product": self.crate.id, "quantity": 1}],
+            },
+            format="json",
+        )
+
+        self.assertEqual(empty.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(changed.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(shipped.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(pending.status_code, status.HTTP_201_CREATED)
+        order = FulfillmentOrder.objects.get(pk=created.data["id"])
+        self.assertEqual(str(order), f"Order {order.pk} (PENDING)")
+        self.assertEqual(str(order.lines.get()), "CRATE-1 Crate x 2")

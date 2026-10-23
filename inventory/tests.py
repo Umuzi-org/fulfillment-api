@@ -89,6 +89,25 @@ class StockMovementTests(TestCase):
 
         self.product.refresh_from_db()
         self.assertEqual(self.product.stock_quantity, 4)
+        self.assertEqual(str(self.warehouse), "Main")
+        self.assertEqual(str(self.product), "CRATE-1 Crate")
+        self.assertEqual(str(movement), "IN 4 CRATE-1 Crate")
+
+    def test_unknown_direction_is_rejected(self):
+        movement = StockMovement(
+            account=self.account,
+            product=self.product,
+            warehouse=self.warehouse,
+            direction="NOPE",
+            quantity=1,
+        )
+
+        with self.assertRaises(ValidationError):
+            movement.save()
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 0)
+        self.assertEqual(StockMovement.objects.count(), 0)
 
 
 class WarehouseApiTests(APITestCase):
