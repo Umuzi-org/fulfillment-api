@@ -1,11 +1,68 @@
 import json
+import os
 from unittest.mock import patch
 
 from django.db import Error as DatabaseError
-from django.test import RequestFactory, TestCase
+from django.test import RequestFactory, SimpleTestCase, TestCase
 from rest_framework.exceptions import APIException
 
 from config.exceptions import api_exception_handler, server_error
+from config.settings import BASE_DIR, database_from_environment
+
+
+class DatabaseSettingsTests(SimpleTestCase):
+    def test_sqlite_is_used_when_postgres_is_unset(self):
+        with patch.dict(os.environ, {'POSTGRES_DB': ''}, clear=False):
+            config = database_from_environment()
+
+        self.assertEqual(
+            config['default']['ENGINE'],
+            'django.db.backends.sqlite3',
+        )
+        self.assertEqual(config['default']['NAME'], BASE_DIR / 'db.sqlite3')
+
+    def test_postgres_is_used_when_the_environment_names_a_database(self):
+        with patch.dict(
+            os.environ,
+            {
+                'POSTGRES_DB': 'fulfilment',
+                'POSTGRES_USER': 'app',
+                'POSTGRES_PASSWORD': 'secret',
+                'POSTGRES_HOST': 'db',
+                'POSTGRES_PORT': '5433',
+            },
+            clear=False,
+        ):
+            config = database_from_environment()
+
+        self.assertEqual(
+            config['default'],
+            {
+                'ENGINE': 'django.db.backends.postgresql',
+                'NAME': 'fulfilment',
+                'USER': 'app',
+                'PASSWORD': 'secret',
+                'HOST': 'db',
+                'PORT': '5433',
+            },
+        )
+
+    def test_postgres_defaults_the_host_and_port(self):
+        with patch.dict(
+            os.environ,
+            {'POSTGRES_DB': 'fulfilment'},
+            clear=False,
+        ):
+            os.environ.pop('POSTGRES_USER', None)
+            os.environ.pop('POSTGRES_PASSWORD', None)
+            os.environ.pop('POSTGRES_HOST', None)
+            os.environ.pop('POSTGRES_PORT', None)
+            config = database_from_environment()
+
+        self.assertEqual(config['default']['USER'], '')
+        self.assertEqual(config['default']['PASSWORD'], '')
+        self.assertEqual(config['default']['HOST'], 'localhost')
+        self.assertEqual(config['default']['PORT'], '5432')
 
 
 class HealthTests(TestCase):
