@@ -3,7 +3,7 @@ from rest_framework import status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
-from accounts.models import Account
+from accounts.models import Account, Role
 from config.exceptions import api_exception_handler
 
 
@@ -109,3 +109,85 @@ class ErrorSchemaTests(APITestCase):
             response.json()["error"],
             {"code": "not_found", "message": "Not found.", "details": {}},
         )
+
+
+class AccountApiTests(APITestCase):
+    def setUp(self):
+        self.password = "correct-horse"
+        self.standard = Account.objects.create_user(
+            "standard@example.com",
+            self.password,
+        )
+        self.admin = Account.objects.create_user(
+            "admin@example.com",
+            self.password,
+            role=Role.ADMIN,
+        )
+
+    def authenticate(self, account):
+        login = self.client.post(
+            "/api/auth/token/",
+            {"email": account.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+
+    def test_admin_can_list_and_create_accounts(self):
+        self.authenticate(self.admin)
+
+        listing = self.client.get("/api/accounts/")
+        created = self.client.post(
+            "/api/accounts/",
+            {
+                "email": "New.User@Example.com",
+                "password": "a-private-passphrase",
+                "role": Role.STANDARD,
+            },
+            format="json",
+        )
+
+        self.assertEqual(listing.status_code, status.HTTP_200_OK)
+        self.assertEqual(listing.data["count"], 2)
+        self.assertEqual(created.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(created.data["email"], "new.user@example.com")
+        self.assertNotIn("password", created.data)
+        account = Account.objects.get(email="new.user@example.com")
+        self.assertTrue(account.check_password("a-private-passphrase"))
+
+    def test_standard_user_cannot_list_accounts(self):
+        self.authenticate(self.standard)
+
+        response = self.client.get("/api/accounts/")
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["error"]["code"], "permission_denied")
+
+    def test_user_can_update_their_own_account(self):
+        self.authenticate(self.standard)
+
+        response = self.client.patch(
+            f"/api/accounts/{self.standard.id}/",
+            {"password": "a-new-passphrase"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertNotIn("password", response.data)
+        self.standard.refresh_from_db()
+        self.assertTrue(self.standard.check_password("a-new-passphrase"))
+
+    def test_user_cannot_read_another_account_or_change_role(self):
+        self.authenticate(self.standard)
+
+        other = self.client.get(f"/api/accounts/{self.admin.id}/")
+        role_change = self.client.patch(
+            f"/api/accounts/{self.standard.id}/",
+            {"role": Role.ADMIN},
+            format="json",
+        )
+
+        self.assertEqual(other.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(role_change.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(role_change.data["error"]["code"], "validation_error")
+        self.standard.refresh_from_db()
+        self.assertEqual(self.standard.role, Role.STANDARD)
