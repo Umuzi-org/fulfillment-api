@@ -1,0 +1,9 @@
+Django==6.1.2
+djangorestframework==3.18.3
+djangorestframework-simplejwt==5.5.1
+drf-spectacular==0.30.0
+psycopg[binary]==3.3.6
+flake8==7.4.1
+pytest==9.1.1
+pytest-django==4.14.0
+pytest-cov==7.1.0

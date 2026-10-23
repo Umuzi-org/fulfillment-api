@@ -40,9 +40,22 @@ INSTALLED_APPS = [
     'accounts',
     'inventory',
     'orders',
+    'rest_framework',
+    'drf_spectacular',
 ]
 
 AUTH_USER_MODEL = 'accounts.Account'
+
+REST_FRAMEWORK = {
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20,
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'Inventory and Supply Chain Fulfilment API',
+    'VERSION': '1.0.0',
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
