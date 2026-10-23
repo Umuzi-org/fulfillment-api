@@ -295,3 +295,136 @@ class ProductApiTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertEqual(response.data["error"]["code"], "validation_error")
         self.assertFalse(Product.objects.filter(sku="BOX-2").exists())
+
+
+class StockMovementApiTests(APITestCase):
+    def setUp(self):
+        self.password = "correct-horse"
+        self.standard = Account.objects.create_user(
+            "standard@example.com",
+            self.password,
+        )
+        self.admin = Account.objects.create_user(
+            "admin@example.com",
+            self.password,
+            role=Role.ADMIN,
+        )
+        self.warehouse = Warehouse.objects.create(
+            name="Main",
+            location="Dock 1",
+            capacity=100,
+        )
+        self.product = Product.objects.create(
+            sku="CRATE-1",
+            name="Crate",
+            unit_price="5.00",
+            stock_quantity=0,
+        )
+
+    def authenticate(self, account):
+        login = self.client.post(
+            "/api/auth/token/",
+            {"email": account.email, "password": self.password},
+            format="json",
+        )
+        self.client.credentials(HTTP_AUTHORIZATION=f"Bearer {login.data['access']}")
+
+    def test_admin_movement_changes_stock_and_records_the_admin(self):
+        self.authenticate(self.admin)
+
+        received = self.client.post(
+            "/api/stock-movements/",
+            {
+                "product": self.product.id,
+                "warehouse": self.warehouse.id,
+                "direction": "IN",
+                "quantity": 4,
+                "note": "delivery",
+            },
+            format="json",
+        )
+        shipped = self.client.post(
+            "/api/stock-movements/",
+            {
+                "product": self.product.id,
+                "warehouse": self.warehouse.id,
+                "direction": "OUT",
+                "quantity": 3,
+            },
+            format="json",
+        )
+
+        self.product.refresh_from_db()
+        self.assertEqual(received.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(received.data["account"], self.admin.id)
+        self.assertEqual(shipped.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(self.product.stock_quantity, 1)
+
+    def test_outbound_movement_larger_than_stock_is_rejected(self):
+        self.authenticate(self.admin)
+        self.client.post(
+            "/api/stock-movements/",
+            {
+                "product": self.product.id,
+                "warehouse": self.warehouse.id,
+                "direction": "IN",
+                "quantity": 2,
+            },
+            format="json",
+        )
+
+        response = self.client.post(
+            "/api/stock-movements/",
+            {
+                "product": self.product.id,
+                "warehouse": self.warehouse.id,
+                "direction": "OUT",
+                "quantity": 3,
+            },
+            format="json",
+        )
+
+        self.product.refresh_from_db()
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.data["error"]["code"], "validation_error")
+        self.assertEqual(self.product.stock_quantity, 2)
+        self.assertEqual(StockMovement.objects.count(), 1)
+
+    def test_signed_in_user_can_list_movements(self):
+        self.authenticate(self.admin)
+        self.client.post(
+            "/api/stock-movements/",
+            {
+                "product": self.product.id,
+                "warehouse": self.warehouse.id,
+                "direction": "IN",
+                "quantity": 1,
+            },
+            format="json",
+        )
+        self.authenticate(self.standard)
+
+        response = self.client.get("/api/stock-movements/")
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["direction"], "IN")
+
+    def test_standard_user_cannot_create_a_movement(self):
+        self.authenticate(self.standard)
+
+        response = self.client.post(
+            "/api/stock-movements/",
+            {
+                "product": self.product.id,
+                "warehouse": self.warehouse.id,
+                "direction": "IN",
+                "quantity": 1,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(StockMovement.objects.count(), 0)
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.stock_quantity, 0)
