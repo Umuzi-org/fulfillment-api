@@ -1,7 +1,10 @@
+from django.test import override_settings
 from rest_framework import status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.test import APITestCase
 
 from accounts.models import Account
+from config.exceptions import api_exception_handler
 
 
 class LoginTests(APITestCase):
@@ -66,3 +69,43 @@ class LoginTests(APITestCase):
         response = self.client.get("/api/accounts/me/")
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["error"]["code"], "not_authenticated")
+
+
+class ErrorSchemaTests(APITestCase):
+    def test_invalid_body_uses_the_error_schema(self):
+        response = self.client.post("/api/auth/token/", {}, format="json")
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(
+            response.data["error"],
+            {
+                "code": "validation_error",
+                "message": "Invalid input.",
+                "details": {
+                    "email": ["This field is required."],
+                    "password": ["This field is required."],
+                },
+            },
+        )
+
+    def test_permission_denial_uses_the_error_schema(self):
+        response = api_exception_handler(PermissionDenied(), {})
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertEqual(response.data["error"]["code"], "permission_denied")
+        self.assertEqual(
+            response.data["error"]["message"],
+            "You do not have permission to perform this action.",
+        )
+        self.assertEqual(response.data["error"]["details"], {})
+
+    @override_settings(DEBUG=False)
+    def test_unknown_url_uses_the_error_schema(self):
+        response = self.client.get("/api/does-not-exist/")
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+        self.assertEqual(
+            response.json()["error"],
+            {"code": "not_found", "message": "Not found.", "details": {}},
+        )
